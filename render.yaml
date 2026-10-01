@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: forest-fire-dashboard
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TEMP_THRESHOLD
+        value: "50"
+      - key: HUMIDITY_THRESHOLD
+        value: "20"
+      - key: SMOKE_THRESHOLD
+        value: "600"
+      - key: NODE_VERSION
+        value: "20"

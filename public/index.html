@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forest Fire Detection Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-icon">🔥</span>
+      <div>
+        <div class="brand-title">Forest Fire</div>
+        <div class="brand-sub">Detection System</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" data-tab="overview">
+        <span class="nav-ico">🏠</span> ภาพรวม
+      </a>
+      <a class="nav-item" data-tab="sensors">
+        <span class="nav-ico">📡</span> ข้อมูลเซ็นเซอร์
+      </a>
+      <a class="nav-item" data-tab="alerts">
+        <span class="nav-ico">🔔</span> การแจ้งเตือน
+      </a>
+      <a class="nav-item" data-tab="settings">
+        <span class="nav-ico">⚙️</span> ตั้งค่า
+      </a>
+    </nav>
+    <div class="sidebar-foot">v1.0 · Render Cloud</div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Header -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="header-icon">🔥</span>
+        <div>
+          <h1>Forest Fire Detection</h1>
+          <p>ระบบตรวจจับไฟป่าแบบ IoT ด้วย ESP32</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span id="sys-pill" class="pill pill-ok">● ระบบทำงานปกติ</span>
+        <span id="clock" class="clock">--</span>
+        <span id="tg-pill" class="pill pill-tg">📨 Telegram</span>
+      </div>
+    </header>
+
+    <!-- Node cards + fire status -->
+    <section class="grid-top">
+      <div class="card node-card" id="card-node1">
+        <div class="node-head">
+          <span class="node-ico">🤖</span>
+          <div>
+            <div class="node-title">Node 1</div>
+            <div class="node-sub">ESP32 DevKit V1 · ID: node1</div>
+          </div>
+          <span class="status-chip" id="node1-online">● ออฟไลน์</span>
+        </div>
+        <div class="node-metrics">
+          <div class="metric">
+            <span class="metric-ico">🌡️</span>
+            <div>
+              <div class="metric-label">อุณหภูมิ</div>
+              <div class="metric-value" id="node1-temp">-- °C</div>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric-ico">💧</span>
+            <div>
+              <div class="metric-label">ความชื้น</div>
+              <div class="metric-value" id="node1-hum">-- %</div>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric-ico">🌫️</span>
+            <div>
+              <div class="metric-label">ควัน (MQ-2)</div>
+              <div class="metric-value" id="node1-smoke">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card node-card" id="card-node2">
+        <div class="node-head">
+          <span class="node-ico">🤖</span>
+          <div>
+            <div class="node-title">Node 2</div>
+            <div class="node-sub">ESP32 DevKit V1 · ID: node2</div>
+          </div>
+          <span class="status-chip" id="node2-online">● ออฟไลน์</span>
+        </div>
+        <div class="node-metrics">
+          <div class="metric">
+            <span class="metric-ico">🌡️</span>
+            <div>
+              <div class="metric-label">อุณหภูมิ</div>
+              <div class="metric-value" id="node2-temp">-- °C</div>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric-ico">💧</span>
+            <div>
+              <div class="metric-label">ความชื้น</div>
+              <div class="metric-value" id="node2-hum">-- %</div>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric-ico">🌫️</span>
+            <div>
+              <div class="metric-label">ควัน (MQ-2)</div>
+              <div class="metric-value" id="node2-smoke">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card fire-card" id="fire-card">
+        <div class="fire-label">สถานะไฟป่า</div>
+        <div class="fire-state" id="fire-state">ปกติ</div>
+        <div class="fire-desc" id="fire-desc">ไม่มีความเสี่ยงไฟไหม้ · ระบบตรวจสอบตามปกติ</div>
+      </div>
+    </section>
+
+    <!-- Charts + sensor summary -->
+    <section class="grid-mid">
+      <div class="card chart-card">
+        <h2>📈 กราฟข้อมูลย้อนหลัง (24 ชั่วโมง)</h2>
+        <div class="chart-row">
+          <div class="chart-box">
+            <div class="chart-title">อุณหภูมิ (°C)</div>
+            <canvas id="chartTemp"></canvas>
+          </div>
+          <div class="chart-box">
+            <div class="chart-title">ความชื้น (%)</div>
+            <canvas id="chartHum"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card summary-card">
+        <h2>🗂️ สรุปข้อมูลเซ็นเซอร์ (ล่าสุด)</h2>
+        <div class="summary-node" id="summary-node1">
+          <div class="summary-head node1-head">Node 1</div>
+          <div class="summary-row">🌡️ อุณหภูมิ <span>-- °C</span></div>
+          <div class="summary-row">💧 ความชื้น <span>-- %</span></div>
+          <div class="summary-row">🌫️ ควัน (MQ-2) <span>--</span></div>
+        </div>
+        <div class="summary-node" id="summary-node2">
+          <div class="summary-head node2-head">Node 2</div>
+          <div class="summary-row">🌡️ อุณหภูมิ <span>-- °C</span></div>
+          <div class="summary-row">💧 ความชื้น <span>-- %</span></div>
+          <div class="summary-row">🌫️ ควัน (MQ-2) <span>--</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Alert history + Telegram + System status -->
+    <section class="grid-bottom">
+      <div class="card alerts-card">
+        <h2>🔔 ประวัติการแจ้งเตือน (ล่าสุด)</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>เวลา</th><th>ประเภท</th><th>ข้อความ</th><th>สถานะ</th></tr>
+            </thead>
+            <tbody id="alerts-body">
+              <tr><td colspan="4" class="empty">ยังไม่มีประวัติการแจ้งเตือน</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card tg-card">
+        <h2>✈️ การแจ้งเตือนผ่าน Telegram</h2>
+        <div class="tg-status" id="tg-status">กำลังตรวจสอบ...</div>
+        <button id="tg-test-btn" class="btn-primary">🔔 ทดสอบการแจ้งเตือน</button>
+        <div class="tg-result" id="tg-result"></div>
+      </div>
+
+      <div class="card sys-card">
+        <h2>⚙️ สถานะระบบ</h2>
+        <div class="sys-row"><span>📟 ESP32 (Node 1)</span><span id="sys-node1" class="sys-val">●</span></div>
+        <div class="sys-row"><span>📟 ESP32 (Node 2)</span><span id="sys-node2" class="sys-val">●</span></div>
+        <div class="sys-row"><span>📶 Wi-Fi</span><span id="sys-wifi" class="sys-val">●</span></div>
+        <div class="sys-row"><span>🔗 ESP-NOW</span><span id="sys-espnow" class="sys-val">●</span></div>
+        <div class="sys-row"><span>✈️ Telegram</span><span id="sys-telegram" class="sys-val">●</span></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="/js/dashboard.js"></script>
+</body>
+</html>
