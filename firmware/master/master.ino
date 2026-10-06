@@ -35,7 +35,7 @@ const char* WIFI_PASSWORD = "12345678";
 // ==================================================
 
 const char* NODE_RED_URL =
-  "https://forestfiredetection-l721.onrender.com/firedata";
+  "https://forest-fire-dashboard-1sjj.onrender.com/firedata";
 
 // Must match the API_KEY environment variable on Render
 const char* API_KEY = "zmd9bfytghv3pu7cjear1x2s0in64wqol5k8";
