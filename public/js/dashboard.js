@@ -33,6 +33,19 @@ function renderNode(nodeId, node) {
 
   const card = document.getElementById(`card-node${nodeId.slice(-1)}`);
   card.classList.toggle('is-alert', node.status === 'ALERT');
+  card.classList.toggle('is-watch', node.status === 'WATCH');
+
+  // บอกว่าค่ากำลังเกินเกณฑ์อยู่กี่รอบแล้ว ก่อนจะฟันธงว่าเป็นการแจ้งเตือนจริง
+  const noteEl = document.getElementById(`${nodeId}-note`);
+  if (noteEl) {
+    if (node.status === 'WATCH' && node.consecutiveBreaches) {
+      noteEl.textContent = `⏳ กำลังเฝ้าดู (${node.consecutiveBreaches}/${node.requiredConsecutive || '?'} รอบ) — ยังไม่ฟันธงว่าเป็นไฟ`;
+      noteEl.classList.add('show');
+    } else {
+      noteEl.textContent = '';
+      noteEl.classList.remove('show');
+    }
+  }
 
   const summary = document.getElementById(`summary-${nodeId}`);
   const rows = summary.querySelectorAll('.summary-row span');
@@ -46,12 +59,55 @@ function sysIcon(ok, warnOk) {
   return ok ? { text: '●', cls: '' } : { text: '●', cls: 'off' };
 }
 
+function renderBaseline(nodeId, shortId, info) {
+  const statusEl = document.getElementById(`${shortId}-status`);
+  const meanEl = document.getElementById(`${shortId}-mean`);
+  const thresholdEl = document.getElementById(`${shortId}-threshold`);
+  if (!statusEl) return;
+
+  if (info.usingBaseline) {
+    statusEl.textContent = `✅ เรียนรู้แล้ว (${info.sampleCount} ตัวอย่าง)`;
+    statusEl.className = 'active';
+    meanEl.textContent = fmt(info.baseline);
+    thresholdEl.textContent = `${fmt(info.threshold)} (baseline × อัตราที่ตั้งไว้)`;
+  } else {
+    statusEl.textContent = `⏳ กำลังเรียนรู้ (${info.sampleCount}/${info.minSamples} ตัวอย่าง)`;
+    statusEl.className = 'warming';
+    meanEl.textContent = info.baseline !== null ? fmt(info.baseline) + ' (เบื้องต้น)' : '--';
+    thresholdEl.textContent = `${fmt(info.threshold)} (ค่าเริ่มต้นชั่วคราว)`;
+  }
+}
+
+document.querySelectorAll('.btn-reset').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const nodeId = btn.dataset.node;
+    const resultEl = document.getElementById('baseline-result');
+    btn.disabled = true;
+    resultEl.textContent = `กำลังรีเซ็ต baseline ของ ${nodeId}...`;
+    try {
+      await fetchJSON(`/api/baseline/reset/${nodeId}`, { method: 'POST' });
+      resultEl.textContent = `✅ รีเซ็ต baseline ของ ${nodeId} แล้ว ระบบจะเริ่มเรียนรู้ค่าใหม่`;
+      pollStatus();
+      pollAlerts();
+    } catch (err) {
+      resultEl.textContent = '❌ รีเซ็ตไม่สำเร็จ: ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
 async function pollStatus() {
   try {
     const data = await fetchJSON('/api/status');
 
     renderNode('node1', data.nodes.node1);
     renderNode('node2', data.nodes.node2);
+
+    if (data.baseline) {
+      renderBaseline('node1', 'bl1', data.baseline.node1);
+      renderBaseline('node2', 'bl2', data.baseline.node2);
+    }
 
     const sysPill = document.getElementById('sys-pill');
     const fireState = document.getElementById('fire-state');
@@ -63,15 +119,24 @@ async function pollStatus() {
       sysPill.className = 'pill pill-alert';
       fireState.textContent = 'เตือนภัย';
       fireState.className = 'fire-state alert';
-      fireDesc.textContent = 'ตรวจพบค่าผิดปกติ กรุณาตรวจสอบพื้นที่โดยด่วน';
+      fireDesc.textContent = 'ตรวจพบค่าผิดปกติต่อเนื่อง กรุณาตรวจสอบพื้นที่โดยด่วน';
+      fireCard.classList.remove('is-watch');
       fireCard.classList.add('is-alert');
+    } else if (data.fire === 'WATCH') {
+      sysPill.textContent = '● กำลังเฝ้าดู';
+      sysPill.className = 'pill pill-alert';
+      fireState.textContent = 'เฝ้าระวัง';
+      fireState.className = 'fire-state watch';
+      fireDesc.textContent = 'เริ่มตรวจพบค่าผิดปกติ กำลังรอยืนยันว่าต่อเนื่องจริงหรือไม่';
+      fireCard.classList.remove('is-alert');
+      fireCard.classList.add('is-watch');
     } else {
       sysPill.textContent = '● ระบบทำงานปกติ';
       sysPill.className = 'pill pill-ok';
       fireState.textContent = 'ปกติ';
       fireState.className = 'fire-state';
       fireDesc.textContent = 'ไม่มีความเสี่ยงไฟไหม้ · ระบบตรวจสอบตามปกติ';
-      fireCard.classList.remove('is-alert');
+      fireCard.classList.remove('is-alert', 'is-watch');
     }
 
     const n1 = sysIcon(data.system.node1Online);

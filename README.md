@@ -89,6 +89,19 @@ Also set your real Wi-Fi credentials. The Master now needs **real internet acces
 4. Use the **"ทดสอบการแจ้งเตือน"** button on the dashboard to confirm it works.
 
 ## 6. Thresholds
-Default alert thresholds (same as the original project, override via env vars): temperature ≥ 50 °C, humidity ≤ 20%, or MQ-2 ADC ≥ 600. These are demo values — calibrate them for your real sensors and environment. A threshold alert is not proof of an actual fire.
+
+**Temperature / humidity** use fixed thresholds (override via env vars): temperature ≥ `TEMP_THRESHOLD` (default 50 °C), humidity ≤ `HUMIDITY_THRESHOLD` (default 20%). These are demo values — calibrate them for your real environment.
+
+**Smoke (MQ-2) uses an adaptive per-node baseline instead of a fixed number.** Different MQ-2 units — even the same model — rest at very different "clean air" ADC readings (e.g. ~400-700 on one board, ~1200-1600 on another) depending on manufacturing tolerance, enclosure, and airflow. A single fixed number for both nodes is either too sensitive on one or deaf on the other, so instead:
+
+1. Every time a node reports a reading that is **not** currently flagged as a breach, the server nudges that node's learned "quiet air" baseline (`server/store.js` → `updateSmokeBaseline`). Early readings (first `SMOKE_BASELINE_MIN_SAMPLES`, default 30) average together quickly; after that it drifts slowly (`SMOKE_BASELINE_ALPHA`, default 0.02) so it keeps tracking the sensor over time — ageing, dust, or a swapped sensor — without overreacting to any single reading.
+2. The live alert threshold for that node is `baseline × SMOKE_BASELINE_RATIO` (default 2.5×). Node1 and Node2 end up with different absolute thresholds automatically, matching each sensor's own normal range.
+3. Readings taken **during** a breach never update the baseline — otherwise a slow-building fire would gradually "teach" the system that smoke is normal.
+4. Before a node has collected `SMOKE_BASELINE_MIN_SAMPLES` quiet readings (e.g. right after first boot), it falls back to a fixed `SMOKE_THRESHOLD_FALLBACK` (default 2000) so it's never left without any threshold.
+5. `SMOKE_SAFETY_CEILING` (default 3500) is an absolute hard ceiling: no matter what the learned baseline says, a raw reading above this always counts as a breach. This is a safety net in case a baseline ever drifts somewhere it shouldn't.
+
+The dashboard's **"เกณฑ์แจ้งเตือนควันแบบปรับอัตโนมัติ (Baseline)"** card shows each node's current learned baseline, live threshold, and whether it's still warming up — plus a **reset button per node**, which you should press right after physically replacing or cleaning a sensor so it stops comparing new readings against the old sensor's baseline while it re-learns. You don't need to reset anything for normal gradual drift — the EMA already follows that on its own.
+
+Tune `SMOKE_BASELINE_RATIO` up if you're seeing false alarms from normal ambient variation, or down if real smoke isn't triggering an alert quickly enough. A threshold alert (of any kind) is not proof of an actual fire — it's a first-pass signal to go check.
 
 A node is marked **offline** if no reading has arrived in the last 15 seconds.

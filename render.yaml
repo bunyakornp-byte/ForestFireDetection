@@ -16,7 +16,17 @@ services:
         value: "50"
       - key: HUMIDITY_THRESHOLD
         value: "20"
-      - key: SMOKE_THRESHOLD
-        value: "600"
+      - key: ALERT_CONSEC_REQUIRED
+        value: "3"
+      - key: SMOKE_BASELINE_RATIO
+        value: "2.5"
+      - key: SMOKE_BASELINE_MIN_SAMPLES
+        value: "30"
+      - key: SMOKE_BASELINE_ALPHA
+        value: "0.02"
+      - key: SMOKE_THRESHOLD_FALLBACK
+        value: "2000"
+      - key: SMOKE_SAFETY_CEILING
+        value: "3500"
       - key: NODE_VERSION
         value: "20"

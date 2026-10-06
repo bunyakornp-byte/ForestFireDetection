@@ -93,6 +93,7 @@
             </div>
           </div>
         </div>
+        <div class="node-note" id="node1-note"></div>
       </div>
 
       <div class="card node-card" id="card-node2">
@@ -127,6 +128,7 @@
             </div>
           </div>
         </div>
+        <div class="node-note" id="node2-note"></div>
       </div>
 
       <div class="card fire-card" id="fire-card">
@@ -199,6 +201,31 @@
         <div class="sys-row"><span>📶 Wi-Fi</span><span id="sys-wifi" class="sys-val">●</span></div>
         <div class="sys-row"><span>🔗 ESP-NOW</span><span id="sys-espnow" class="sys-val">●</span></div>
         <div class="sys-row"><span>✈️ Telegram</span><span id="sys-telegram" class="sys-val">●</span></div>
+      </div>
+    </section>
+
+    <!-- Adaptive smoke baseline per node -->
+    <section class="grid-baseline">
+      <div class="card baseline-card">
+        <h2>🎯 เกณฑ์แจ้งเตือนควันแบบปรับอัตโนมัติ (Baseline)</h2>
+        <p class="baseline-intro">ระบบเรียนรู้ค่าควันตอน "อากาศปกติ" ของแต่ละ node แยกกัน แล้วแจ้งเตือนเมื่อค่าสูงกว่าค่าปกติของตัวเองหลายเท่า — เซนเซอร์แต่ละตัวจึงมีเกณฑ์ไม่เท่ากันโดยอัตโนมัติ ตรงกับธรรมชาติของฮาร์ดแวร์แต่ละชุด</p>
+        <div class="baseline-row-wrap">
+          <div class="baseline-node" id="baseline-node1">
+            <div class="baseline-head node1-head">Node 1</div>
+            <div class="baseline-line">สถานะ: <span id="bl1-status">กำลังตรวจสอบ...</span></div>
+            <div class="baseline-line">ค่าฐาน (baseline): <span id="bl1-mean">--</span></div>
+            <div class="baseline-line">เกณฑ์แจ้งเตือนตอนนี้: <span id="bl1-threshold">--</span></div>
+            <button class="btn-reset" data-node="node1">♻️ รีเซ็ต Baseline Node 1</button>
+          </div>
+          <div class="baseline-node" id="baseline-node2">
+            <div class="baseline-head node2-head">Node 2</div>
+            <div class="baseline-line">สถานะ: <span id="bl2-status">กำลังตรวจสอบ...</span></div>
+            <div class="baseline-line">ค่าฐาน (baseline): <span id="bl2-mean">--</span></div>
+            <div class="baseline-line">เกณฑ์แจ้งเตือนตอนนี้: <span id="bl2-threshold">--</span></div>
+            <button class="btn-reset" data-node="node2">♻️ รีเซ็ต Baseline Node 2</button>
+          </div>
+        </div>
+        <div class="baseline-result" id="baseline-result"></div>
       </div>
     </section>
 
