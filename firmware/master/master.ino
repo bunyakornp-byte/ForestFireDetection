@@ -38,7 +38,7 @@ const char* NODE_RED_URL =
   "https://forestfiredetection-l721.onrender.com/firedata";
 
 // Must match the API_KEY environment variable on Render
-const char* API_KEY = "ebfee47cd0fa0cece7a4633ebad5ddda";
+const char* API_KEY = "zmd9bfytghv3pu7cjear1x2s0in64wqol5k8";
 
 // ==================================================
 // 3. Fire detection thresholds
