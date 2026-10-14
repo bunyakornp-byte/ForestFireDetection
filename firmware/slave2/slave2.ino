@@ -48,7 +48,7 @@ uint8_t espnowChannel = 6;
 const int MAX_FAILS_BEFORE_RESCAN = 3;
 
 // ---------- Timing ----------
-const unsigned long SEND_INTERVAL_MS = 20000;
+const unsigned long SEND_INTERVAL_MS = 5000;
 const unsigned long ESPNOW_RETRY_MS = 3000;
 
 // ---------- Master MAC (must be Master's STA MAC) ----------
