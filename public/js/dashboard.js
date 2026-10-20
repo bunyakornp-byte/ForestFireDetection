@@ -1,6 +1,7 @@
 const STATUS_POLL_MS = 4000;
 const HISTORY_POLL_MS = 60000;
 const ALERTS_POLL_MS = 10000;
+const OFFLINE_HISTORY_POLL_MS = 10000;
 
 function fmt(n, suffix = '') {
   return (n === null || n === undefined || Number.isNaN(n)) ? '--' : `${n}${suffix}`;
@@ -97,12 +98,36 @@ document.querySelectorAll('.btn-reset').forEach(btn => {
   });
 });
 
+
+function trendLabel(direction) {
+  if (direction === 'rising') return '<span class="up">↗ เพิ่มขึ้น</span>';
+  if (direction === 'falling') return '<span class="down">↘ ลดลง</span>';
+  return '<span class="steady">→ ค่อนข้างคงที่</span>';
+}
+
+function renderForecast(nodeId, forecast) {
+  const el = document.getElementById(`forecast-${nodeId}`);
+  if (!el) return;
+  if (!forecast || !forecast.ready) {
+    el.textContent = `ข้อมูลย้อนหลัง ${forecast?.samples || 0}/${forecast?.requiredSamples || 4} ตัวอย่าง — ยังพยากรณ์ไม่ได้`;
+    return;
+  }
+  const f = forecast;
+  el.innerHTML = `
+    <div>🌡️ อุณหภูมิ: <b>${fmt(f.temperature.current, ' °C')}</b> → คาดการณ์ <b>${fmt(f.temperature.predicted, ' °C')}</b> ${trendLabel(f.temperature.direction)}</div>
+    <div>💧 ความชื้น: <b>${fmt(f.humidity.current, ' %')}</b> → คาดการณ์ <b>${fmt(f.humidity.predicted, ' %')}</b> ${trendLabel(f.humidity.direction)}</div>
+    <div>🌫️ ควัน: <b>${fmt(f.smoke_level.current)}</b> → คาดการณ์ <b>${fmt(f.smoke_level.predicted)}</b> ${trendLabel(f.smoke_level.direction)}</div>
+    <div>ตัวอย่างที่ใช้ ${f.samples} จุด · ช่วงพยากรณ์ ${f.horizonSeconds} วินาที</div>`;
+}
+
 async function pollStatus() {
   try {
     const data = await fetchJSON('/api/status');
 
     renderNode('node1', data.nodes.node1);
     renderNode('node2', data.nodes.node2);
+    renderForecast('node1', data.forecast?.node1);
+    renderForecast('node2', data.forecast?.node2);
 
     if (data.baseline) {
       renderBaseline('node1', 'bl1', data.baseline.node1);
@@ -224,6 +249,49 @@ async function pollHistory() {
   }
 }
 
+async function pollOfflineHistory() {
+  const body = document.getElementById('offline-history-body');
+  const countEl = document.getElementById('offline-history-count');
+  const noteEl = document.getElementById('offline-history-note');
+  if (!body || !countEl) return;
+
+  try {
+    const result = await fetchJSON('/api/offline-history?limit=100');
+    const rows = Array.isArray(result.records) ? result.records : [];
+    countEl.textContent = `ซิงก์แล้ว ${result.count || rows.length} รายการ`;
+    noteEl.textContent = rows.length
+      ? 'รายการด้านล่างเป็นข้อมูลที่บันทึกขณะออฟไลน์และซิงก์ขึ้นเซิร์ฟเวอร์แล้ว เรียงจากเวลาที่วัดล่าสุด'
+      : 'ยังไม่มีข้อมูลออฟไลน์ที่ซิงก์มาถึงเซิร์ฟเวอร์ ข้อมูลที่ยังค้างใน ESP32 จะปรากฏที่นี่หลังอินเทอร์เน็ตกลับมาและ Master ส่งข้อมูลสำเร็จ';
+
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6" class="empty">ยังไม่มีข้อมูลออฟไลน์ที่ซิงก์แล้ว</td></tr>';
+      return;
+    }
+
+    const safeNum = (v, suffix = '') => Number.isFinite(Number(v)) ? `${Number(v).toFixed(suffix === ' °C' || suffix === ' %' ? 1 : 0)}${suffix}` : '--';
+    body.innerHTML = rows.map(row => {
+      const timestamp = Number(row.t || row.recordedAt || row.receivedAt);
+      const timeText = Number.isFinite(timestamp) && timestamp > 0
+        ? new Date(timestamp).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'medium' })
+        : 'ไม่ทราบเวลา';
+      const node = row.nodeId === 'node1' ? 'Node 1' : row.nodeId === 'node2' ? 'Node 2' : 'ไม่ทราบ Node';
+      const nodeClass = row.nodeId === 'node1' ? 'node1-head' : 'node2-head';
+      return `<tr>
+        <td>${timeText}${row.timeEstimated ? '<div class="muted-small">เวลาโดยประมาณ</div>' : ''}</td>
+        <td><span class="node-tag ${nodeClass}">${node}</span></td>
+        <td>${safeNum(row.temperature, ' °C')}</td>
+        <td>${safeNum(row.humidity, ' %')}</td>
+        <td>${safeNum(row.smoke_level)}</td>
+        <td><span class="synced-badge">✓ ซิงก์แล้ว</span></td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    console.error('offline history poll failed', err);
+    countEl.textContent = 'โหลดไม่สำเร็จ';
+    body.innerHTML = '<tr><td colspan="6" class="empty">โหลดข้อมูลออฟไลน์ไม่สำเร็จ กรุณาลองใหม่</td></tr>';
+  }
+}
+
 function alertBadge(type) {
   if (type === 'alert') return '<span class="badge badge-alert">แจ้งเตือน</span>';
   if (type === 'recovered') return '<span class="badge badge-ok">กลับสู่ปกติ</span>';
@@ -274,6 +342,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.add('active');
     const target = item.dataset.tab === 'alerts' ? '.alerts-card'
       : item.dataset.tab === 'sensors' ? '.grid-mid'
+      : item.dataset.tab === 'offline' ? '#offline-history-section'
       : item.dataset.tab === 'settings' ? '.sys-card'
       : '.grid-top';
     document.querySelector(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -285,8 +354,10 @@ updateClock();
 pollStatus();
 pollHistory();
 pollAlerts();
+pollOfflineHistory();
 
 setInterval(updateClock, 1000);
 setInterval(pollStatus, STATUS_POLL_MS);
 setInterval(pollHistory, HISTORY_POLL_MS);
 setInterval(pollAlerts, ALERTS_POLL_MS);
+setInterval(pollOfflineHistory, OFFLINE_HISTORY_POLL_MS);
