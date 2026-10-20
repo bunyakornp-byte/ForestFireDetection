@@ -207,6 +207,14 @@ function getHistory(minutes = 1440) {
   return db.get('history').filter(h => h.t >= cutoff).value().sort((a, b) => a.t - b.t);
 }
 
+// Offline readings can have an old measurement timestamp but were only received
+// by the cloud recently, so query them independently of measurement-time cutoff.
+function getOfflineHistory(limit = 100) {
+  return db.get('history').filter({ replayed: true }).value()
+    .sort((a, b) => b.t - a.t)
+    .slice(0, Math.max(1, Math.min(Number(limit) || 100, 500)));
+}
+
 // Linear trend forecast from recent historical samples; forecast is advisory, not a fire verdict.
 function forecastNode(nodeId, horizonMs = 60000, maxPoints = 12) {
   const rows = db.get('history').filter({ nodeId }).value()
@@ -293,6 +301,7 @@ module.exports = {
   getNodeStatus,
   saveReading,
   getHistory,
+  getOfflineHistory,
   getChartSeries,
   forecastNode,
   addAlert,
