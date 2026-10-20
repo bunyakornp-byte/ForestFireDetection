@@ -69,6 +69,11 @@ app.post('/firedata', (req, res) => {
 
   const d = req.body || {};
 
+  // Idempotency: an ESP32 may retry if the server accepted a record but its response was lost.
+  if (d.recordId && store.hasRecordId(d.recordId)) {
+    return res.status(200).json({ ok: true, duplicate: true, recordId: String(d.recordId).slice(0, 80) });
+  }
+
   // Validate node ID
   if (!['node1', 'node2'].includes(d.nodeId)) {
     return res.status(400).json({
@@ -87,6 +92,34 @@ app.post('/firedata', (req, res) => {
       ok: false,
       error: 'Invalid sensor values'
     });
+  }
+
+  // Replayed records are historical samples: store them without changing the
+  // current node status, learned baseline, consecutive-breach state, or live alerts.
+  if (d.replayed === true) {
+    const historicalFire = d.fire_detected === true;
+    const historical = store.saveReading(d.nodeId, {
+      recordId: d.recordId,
+      recordedAt: d.recordedAt,
+      replayed: true,
+      historicalOnly: true,
+      temperature,
+      humidity,
+      smoke_level,
+      alert: historicalFire,
+      watch: false,
+      consecutiveBreaches: 0,
+      requiredConsecutive: ALERT_CONSEC_REQUIRED
+    });
+    if (historicalFire && !store.hasRecentHistoricalAlert(d.nodeId)) {
+      store.addAlert({
+        type: 'alert',
+        nodeId: d.nodeId,
+        message: `พบข้อมูลย้อนหลังที่ Master ระบุว่าผิดปกติ: ${temperature} °C, ความชื้น ${humidity}%, ควัน ${smoke_level}`,
+        status: 'เหตุการณ์ย้อนหลัง (ซิงก์แล้ว)'
+      });
+    }
+    return res.status(200).json({ ok: true, nodeId: d.nodeId, replayed: true, recordedAt: historical.t, duplicate: false });
   }
 
   // เกณฑ์ควันของ node นี้ "วันนี้" คืออะไร — คำนวณจาก baseline ที่เรียนรู้มา (หรือ fallback ถ้ายังเรียนรู้ไม่พอ)
@@ -126,6 +159,9 @@ app.post('/firedata', (req, res) => {
 
   // Save sensor reading
   const reading = store.saveReading(d.nodeId, {
+    recordId: d.recordId,
+    recordedAt: d.recordedAt,
+    replayed: d.replayed,
     temperature,
     humidity,
     smoke_level,
@@ -240,6 +276,11 @@ app.get('/api/status', (req, res) => {
     baseline: {
       node1: baselineInfo('node1'),
       node2: baselineInfo('node2')
+    },
+
+    forecast: {
+      node1: store.forecastNode('node1', 60000, 12),
+      node2: store.forecastNode('node2', 60000, 12)
     },
 
     system: {
