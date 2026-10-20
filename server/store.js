@@ -138,6 +138,11 @@ function now() {
   return Date.now();
 }
 
+function hasRecordId(recordId) {
+  if (!recordId) return false;
+  return !!db.get('history').find({ recordId: String(recordId).slice(0, 80) }).value();
+}
+
 function getLatest() {
   return db.get('latest').value() || {};
 }
@@ -154,8 +159,21 @@ function getNodeStatus(nodeId) {
 }
 
 function saveReading(nodeId, reading) {
+  const recordId = reading.recordId ? String(reading.recordId).slice(0, 80) : null;
+  if (recordId) {
+    const existing = db.get('history').find({ recordId }).value();
+    if (existing) return existing; // replayed request: do not duplicate a record
+  }
+  const receivedAt = now();
+  const recordedAt = Number(reading.recordedAt);
+  const validRecordedAt = Number.isFinite(recordedAt) && recordedAt > 0;
   const entry = {
-    t: now(),
+    t: validRecordedAt ? recordedAt : receivedAt,
+    receivedAt,
+    recordId,
+    replayed: !!reading.replayed,
+    timeEstimated: !validRecordedAt,
+    historicalOnly: !!reading.historicalOnly,
     nodeId,
     temperature: reading.temperature,
     humidity: reading.humidity,
@@ -170,14 +188,14 @@ function saveReading(nodeId, reading) {
     smokeBaselineSamples: reading.smokeBaselineSamples || 0
   };
 
-  db.set(`latest.${nodeId}`, entry).write();
+  if (!reading.historicalOnly) db.set(`latest.${nodeId}`, entry).write();
   db.get('history').push(entry).write();
 
   // prune old history occasionally (cheap check every write; fine at this scale)
   const cutoff = now() - HISTORY_RETENTION_MS;
   const hist = db.get('history').value();
   if (hist.length > HISTORY_MAX_POINTS || (hist[0] && hist[0].t < cutoff)) {
-    const pruned = hist.filter(h => h.t >= cutoff).slice(-HISTORY_MAX_POINTS);
+    const pruned = hist.filter(h => (h.receivedAt || h.t) >= cutoff).slice(-HISTORY_MAX_POINTS);
     db.set('history', pruned).write();
   }
 
@@ -186,7 +204,34 @@ function saveReading(nodeId, reading) {
 
 function getHistory(minutes = 1440) {
   const cutoff = now() - minutes * 60 * 1000;
-  return db.get('history').filter(h => h.t >= cutoff).value();
+  return db.get('history').filter(h => h.t >= cutoff).value().sort((a, b) => a.t - b.t);
+}
+
+// Linear trend forecast from recent historical samples; forecast is advisory, not a fire verdict.
+function forecastNode(nodeId, horizonMs = 60000, maxPoints = 12) {
+  const rows = db.get('history').filter({ nodeId }).value()
+    .filter(r => Number.isFinite(r.t) && Number.isFinite(r.temperature) && Number.isFinite(r.humidity) && Number.isFinite(r.smoke_level))
+    .sort((a, b) => a.t - b.t)
+    .slice(-maxPoints);
+  if (rows.length < 4) return { nodeId, ready: false, samples: rows.length, requiredSamples: 4, horizonSeconds: horizonMs / 1000 };
+  const x0 = rows[0].t;
+  const xs = rows.map(r => (r.t - x0) / 1000);
+  const meanX = xs.reduce((a, b) => a + b, 0) / xs.length;
+  const fit = (key) => {
+    const ys = rows.map(r => Number(r[key]));
+    const meanY = ys.reduce((a, b) => a + b, 0) / ys.length;
+    let numerator = 0, denominator = 0;
+    for (let i = 0; i < xs.length; i++) { numerator += (xs[i] - meanX) * (ys[i] - meanY); denominator += (xs[i] - meanX) ** 2; }
+    const slopePerSecond = denominator ? numerator / denominator : 0;
+    const predicted = ys[ys.length - 1] + slopePerSecond * (horizonMs / 1000);
+    return { current: ys[ys.length - 1], ratePerMinute: +(slopePerSecond * 60).toFixed(3), predicted: +predicted.toFixed(2), direction: Math.abs(slopePerSecond) < 0.0005 ? 'stable' : (slopePerSecond > 0 ? 'rising' : 'falling') };
+  };
+  const result = { nodeId, ready: true, samples: rows.length, horizonSeconds: horizonMs / 1000, temperature: fit('temperature'), humidity: fit('humidity'), smoke_level: fit('smoke_level'), calculatedAt: now() };
+  // Clamp forecasts to physically meaningful ranges / ADC limits.
+  result.temperature.predicted = Math.max(-40, Math.min(125, result.temperature.predicted));
+  result.humidity.predicted = Math.max(0, Math.min(100, result.humidity.predicted));
+  result.smoke_level.predicted = Math.max(0, Math.min(4095, result.smoke_level.predicted));
+  return result;
 }
 
 // Downsample history into evenly spaced buckets per node, good for line charts.
@@ -231,6 +276,11 @@ function addAlert(entry) {
   return row;
 }
 
+function hasRecentHistoricalAlert(nodeId, windowMs = 10 * 60 * 1000) {
+  const cutoff = now() - windowMs;
+  return (db.get('alerts').value() || []).some(a => a.type === 'alert' && a.nodeId === nodeId && a.status === 'เหตุการณ์ย้อนหลัง (ซิงก์แล้ว)' && a.t >= cutoff);
+}
+
 function getAlerts(limit = 50) {
   const alerts = db.get('alerts').value() || [];
   return alerts.slice(-limit).reverse();
@@ -239,11 +289,14 @@ function getAlerts(limit = 50) {
 module.exports = {
   OFFLINE_MS,
   getLatest,
+  hasRecordId,
   getNodeStatus,
   saveReading,
   getHistory,
   getChartSeries,
+  forecastNode,
   addAlert,
+  hasRecentHistoricalAlert,
   getAlerts,
   trackTrend,
   resetTrend,
