@@ -51,7 +51,8 @@ const float HUMIDITY_THRESHOLD = 20.0; // กำหนดความชื้�
 const int SMOKE_THRESHOLD = 2000; // กำหนดค่า smoke ตั้งแต่ 2000 ให้เข้าเงื่อนไขแจ้งเตือนไฟ
 
 const unsigned long WIFI_RETRY_MS = 10000; // กำหนดช่วงเวลาลองเชื่อม Wi-Fi ใหม่ 10,000 มิลลิวินาที (10 วินาที)
-const unsigned long POST_RETRY_MS = 10000; // กำหนดช่วงเวลารอก่อนส่งข้อมูลซ้ำ 10 วินาที
+const unsigned long POST_RETRY_MS = 10000; // หากส่งคิวไม่สำเร็จ ให้รอ 10 วินาทีก่อนลองใหม่
+const unsigned long QUEUE_FLUSH_INTERVAL_MS = 500; // เมื่อส่งสำเร็จ ให้ระบายคิวเก่าต่อทุก 500 มิลลิวินาที
 const unsigned long HTTPS_TIMEOUT_MS = 15000; // จำกัดเวลา HTTPS เพื่อให้ loop กลับมาประมวลผลข้อมูลได้เร็วขึ้น
 const char* PENDING_FILE = "/pending.csv";
 const size_t MAX_PENDING_RECORDS = 100; // จำกัดคิว Flash ไม่ให้โตไม่สิ้นสุด
@@ -666,11 +667,23 @@ void loop() {
   drainReceivedSamples();
 
   if (WiFi.status() == WL_CONNECTED && pendingCount() > 0) {
+    // Drain old records quickly after a successful POST. If a POST fails,
+    // back off for POST_RETRY_MS instead of hammering the server.
     static unsigned long lastQueueAttempt = 0;
-    if (lastQueueAttempt == 0 || millis() - lastQueueAttempt >= POST_RETRY_MS) {
-      lastQueueAttempt = millis();
+    static unsigned long retryAfterFailureMs = 0;
+    const unsigned long now = millis();
+
+    if (retryAfterFailureMs != 0 && (long)(now - retryAfterFailureMs) < 0) {
+      // Still waiting for the failure backoff period to expire.
+    } else if (lastQueueAttempt == 0 || now - lastQueueAttempt >= QUEUE_FLUSH_INTERVAL_MS) {
+      lastQueueAttempt = now;
       if (flushPendingHead()) {
+        retryAfterFailureMs = 0;
         Serial.printf("Offline queue remaining: %u\n", (unsigned)pendingCount());
+      } else {
+        retryAfterFailureMs = now + POST_RETRY_MS;
+        Serial.printf("WARNING: Could not flush offline queue; retry in %lu seconds\n",
+                      (unsigned long)(POST_RETRY_MS / 1000));
       }
     }
   }
