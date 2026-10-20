@@ -30,6 +30,9 @@
       <a class="nav-item" data-tab="sensors">
         <span class="nav-ico">📡</span> ข้อมูลเซ็นเซอร์
       </a>
+      <a class="nav-item" data-tab="offline">
+        <span class="nav-ico">📦</span> ข้อมูลออฟไลน์
+      </a>
       <a class="nav-item" data-tab="alerts">
         <span class="nav-ico">🔔</span> การแจ้งเตือน
       </a>
@@ -66,7 +69,7 @@
           <span class="node-ico">🤖</span>
           <div>
             <div class="node-title">Node 1</div>
-            <div class="node-sub">ESP32 DevKit V1 · ID: node1</div>
+            <div class="node-sub">ESP32 C3 SUPERMINI · ID: node1</div>
           </div>
           <span class="status-chip" id="node1-online">● ออฟไลน์</span>
         </div>
@@ -101,7 +104,7 @@
           <span class="node-ico">🤖</span>
           <div>
             <div class="node-title">Node 2</div>
-            <div class="node-sub">ESP32 DevKit V1 · ID: node2</div>
+            <div class="node-sub">ESP32 C3 SUPERMINI · ID: node2</div>
           </div>
           <span class="status-chip" id="node2-online">● ออฟไลน์</span>
         </div>
@@ -167,6 +170,50 @@
           <div class="summary-row">🌡️ อุณหภูมิ <span>-- °C</span></div>
           <div class="summary-row">💧 ความชื้น <span>-- %</span></div>
           <div class="summary-row">🌫️ ควัน (MQ-2) <span>--</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Short-term trend forecast from recent historical sensor readings -->
+    <section class="grid-forecast">
+      <div class="card forecast-card">
+        <h2>📉 พยากรณ์แนวโน้มจากข้อมูลย้อนหลัง (ประมาณ 60 วินาที)</h2>
+        <p class="forecast-intro">คำนวณแนวโน้มเชิงเส้นจากข้อมูลล่าสุดสูงสุด 12 จุด เป็นค่าประมาณเพื่อเฝ้าระวัง ไม่ใช่การยืนยันว่าเกิดไฟป่า</p>
+        <div class="forecast-grid">
+          <div class="forecast-node">
+            <h3>Node 1</h3>
+            <div id="forecast-node1" class="forecast-values">รอข้อมูลย้อนหลังอย่างน้อย 4 ตัวอย่าง...</div>
+          </div>
+          <div class="forecast-node">
+            <h3>Node 2</h3>
+            <div id="forecast-node2" class="forecast-values">รอข้อมูลย้อนหลังอย่างน้อย 4 ตัวอย่าง...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Offline readings queued on ESP32 and synchronized after internet returns -->
+    <section class="grid-offline-history" id="offline-history-section">
+      <div class="card offline-history-card">
+        <div class="offline-history-heading">
+          <div>
+            <h2>📦 ข้อมูลเซ็นเซอร์ที่บันทึกขณะออฟไลน์</h2>
+            <p class="offline-history-intro">แสดงข้อมูลที่ Master เก็บไว้ใน LittleFS แล้วส่งขึ้นเซิร์ฟเวอร์หลังอินเทอร์เน็ตกลับมา</p>
+          </div>
+          <span id="offline-history-count" class="offline-count">กำลังโหลด...</span>
+        </div>
+        <div id="offline-history-note" class="offline-history-note">ข้อมูลที่ยังค้างอยู่ใน ESP32 จะยังไม่ปรากฏบนเว็บไซต์จนกว่า Master จะเชื่อมต่ออินเทอร์เน็ตและซิงก์ข้อมูลสำเร็จ</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>เวลาที่วัด</th><th>Node</th><th>อุณหภูมิ</th><th>ความชื้น</th><th>ควัน MQ-2</th><th>สถานะซิงก์</th>
+              </tr>
+            </thead>
+            <tbody id="offline-history-body">
+              <tr><td colspan="6" class="empty">กำลังโหลดข้อมูล...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
