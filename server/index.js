@@ -309,6 +309,17 @@ app.get('/api/history', (req, res) => {
   res.json(store.getChartSeries(minutes, bucketMinutes));
 });
 
+// ---------- Offline queue history (records replayed from ESP32 LittleFS) ----------
+// These records only reach the cloud after the Master regains internet access.
+app.get('/api/offline-history', (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const rows = store.getOfflineHistory(limit);
+  res.json({
+    count: rows.length,
+    records: rows
+  });
+});
+
 // ---------- Dashboard alerts ----------
 app.get('/api/alerts', (req, res) => {
   const limit = Math.min(
